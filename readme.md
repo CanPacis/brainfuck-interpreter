@@ -12,7 +12,7 @@ To run a brainfuck script, import the runtime and create a runtime options struc
 package main
 
 import (
-	"github.com/CanPacis/brainfuck-interpreter/runtime"
+  "github.com/CanPacis/brainfuck-interpreter/runtime"
 )
 
 func main() {
