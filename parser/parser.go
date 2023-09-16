@@ -31,37 +31,37 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 		token := tokens[index]
 
 		switch token.Type {
-		case "Plus":
+		case "plus":
 			statements = append(statements, Statement{Type: "Increment Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "Minus":
+		case "minus":
 			statements = append(statements, Statement{Type: "Decrement Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "MoveRight":
+		case "move_right":
 			statements = append(statements, Statement{Type: "Move Right Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "MoveLeft":
+		case "move_left":
 			statements = append(statements, Statement{Type: "Move Left Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "Dot":
+		case "dot":
 			statements = append(statements, Statement{Type: "Stdout Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "Comma":
+		case "comma":
 			statements = append(statements, Statement{Type: "Stdin Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "Clear":
+		case "star":
 			statements = append(statements, Statement{Type: "Clear Statement", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "Debug":
+		case "debug":
 			isDebug = true
-		case "Bar":
+		case "bar":
 			if index+2 > len(tokens) {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, expected number")
 			}
 
 			nextToken := tokens[index+1]
 
-			if nextToken.Type != "Number" {
+			if nextToken.Type != "number" {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected %s token, expected number", nextToken.Type)
 			}
 
@@ -73,7 +73,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 
 			statements = append(statements, Statement{Type: "Push Statement", Value: uint32(value), Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "LoopOpen":
+		case "loop_open":
 			if index+2 > len(tokens) {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, loop is unclose")
 			}
@@ -86,7 +86,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 			}
 			statements = append(statements, Statement{Type: "Loop Statement", Body: loopStatements, Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
-		case "LoopClose":
+		case "loop_close":
 			isDebug = false
 			return statements, index + 1, token.Position, nil
 		}

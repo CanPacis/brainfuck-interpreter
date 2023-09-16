@@ -44,29 +44,31 @@ func (l *Lexer) Lex(input string) {
 
 		switch char {
 		case '+':
-			l.Tokens = append(l.Tokens, l.CreateToken("Plus", "+"))
+			l.Tokens = append(l.Tokens, l.CreateToken("plus", "+"))
 		case '-':
-			l.Tokens = append(l.Tokens, l.CreateToken("Minus", "-"))
+			l.Tokens = append(l.Tokens, l.CreateToken("minus", "-"))
 		case '.':
-			l.Tokens = append(l.Tokens, l.CreateToken("Dot", "."))
+			l.Tokens = append(l.Tokens, l.CreateToken("dot", "."))
 		case ',':
-			l.Tokens = append(l.Tokens, l.CreateToken("Comma", ","))
+			l.Tokens = append(l.Tokens, l.CreateToken("comma", ","))
 		case '>':
-			l.Tokens = append(l.Tokens, l.CreateToken("MoveRight", ">"))
+			l.Tokens = append(l.Tokens, l.CreateToken("move_right", ">"))
 		case '<':
-			l.Tokens = append(l.Tokens, l.CreateToken("MoveLeft", "<"))
+			l.Tokens = append(l.Tokens, l.CreateToken("move_left", "<"))
 		case '[':
-			l.Tokens = append(l.Tokens, l.CreateToken("LoopOpen", "["))
+			l.Tokens = append(l.Tokens, l.CreateToken("loop_open", "["))
 		case ']':
-			l.Tokens = append(l.Tokens, l.CreateToken("LoopClose", "]"))
+			l.Tokens = append(l.Tokens, l.CreateToken("loop_close", "]"))
 		case '|':
-			l.Tokens = append(l.Tokens, l.CreateToken("Bar", "|"))
+			l.Tokens = append(l.Tokens, l.CreateToken("bar", "|"))
 		case '*':
-			l.Tokens = append(l.Tokens, l.CreateToken("Clear", "*"))
+			l.Tokens = append(l.Tokens, l.CreateToken("star", "*"))
+		case 32:
+			l.Tokens = append(l.Tokens, l.CreateToken("space", " "))
 		case 10:
-			l.CreateToken("NewLine", "\n")
+			l.CreateToken("new_line", "\n")
 		case '\\':
-			l.CreateToken("Escape", "\\\\")
+			l.CreateToken("escape", "\\\\")
 			index++
 		default:
 			if char < 58 && char > 47 {
@@ -85,7 +87,7 @@ func (l *Lexer) Lex(input string) {
 
 func (l *Lexer) LexDebug(input string) int {
 	if input[:5] == "debug" {
-		l.Tokens = append(l.Tokens, l.CreateToken("Debug", "debug"))
+		l.Tokens = append(l.Tokens, l.CreateToken("debug", "debug"))
 		return 4
 	} else {
 		l.CurrentPosition.Column++
@@ -111,7 +113,7 @@ func (l *Lexer) LexNumber(input string) int {
 		}
 	}
 
-	l.Tokens = append(l.Tokens, l.CreateToken("Number", number))
+	l.Tokens = append(l.Tokens, l.CreateToken("number", number))
 
 	return consumed - 1
 }

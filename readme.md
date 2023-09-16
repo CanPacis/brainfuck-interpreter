@@ -1,8 +1,8 @@
 # Brainfuck Interpreter
 
-This is a brainfuck interpreter that is built with a lexer, a parser and a debugger protocol. 
+This is a brainfuck interpreter that is built with a lexer, a parser and a debugger protocol.
 
-> Important: Currently there isn't a debugger client. If you run your program with a debugger attached, the program will wait for a client to connect and do nothing else.
+> Currently there isn't a debugger client. If you run your program with a debugger attached, the program will wait for a client to connect and do nothing else.
 
 ## Running a script
 
@@ -27,9 +27,11 @@ func main() {
 ```
 
 ## Superset
+
 This is actually intended to be a superset of brainfuck so there are extended capabilities of the runtime.
 
 ### Clearing (`*` operator)
+
 You can clear your tape with a `*` opearator.
 
 ```
@@ -56,6 +58,7 @@ tape is [255, 128, 0, 0, 0 ...] now
 ```
 
 ### Escaping
+
 You need to escape the operator keywords if you are using them in your comments. The parser cannot ignore them without proper escaping.
 
 ```
@@ -67,7 +70,8 @@ Calculate 7 \* 8
 ```
 
 ### More than a byte
-The interpreters tape can hold values more than a byte. Well not exactly, to be backwards compatible with brainfuck, the tape still holds `uint8` values. But values pushed with the `|` operator can hold values of `uint32`. These pushed values still be recorded as a `uint8` value in the tape but there is another tape that holds the `uint32` values. This secondary tape is always in sync with the primary tape so if you manipulate your `uint8` values, the `uint32` correspondant will also change. 
+
+The interpreters tape can hold values more than a byte. Well not exactly, to be backwards compatible with brainfuck, the tape still holds `uint8` values. But values pushed with the `|` operator can hold values of `uint32`. These pushed values still be recorded as a `uint8` value in the tape but there is another tape that holds the `uint32` values. This secondary tape is always in sync with the primary tape so if you manipulate your `uint8` values, the `uint32` correspondant will also change.
 
 > Any other operator apart from the `|` operator will result in a `uint8` value in the `uint32` tape. For instance:
 
@@ -86,4 +90,5 @@ secondary tape is [2, 0, 0, 0, ...]
 ```
 
 ### IO
+
 The plan is to make brainfuck be able to read and write to more than one io target that is std. It should be able to read and write to disk, tcp or http connections or any other byte writable stream. This part is still an ongoing process.
