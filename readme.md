@@ -55,6 +55,17 @@ Although it seems out of nature with the philosophy of brainfuck, you can set va
 tape is [255, 128, 0, 0, 0 ...] now
 ```
 
+### Escaping
+You need to escape the operator keywords if you are using them in your comments. The parser cannot ignore them without proper escaping.
+
+```
+Bad:
+Calculate 7 * 8
+
+Good:
+Calculate 7 \* 8
+```
+
 ### More than a byte
 The interpreters tape can hold values more than a byte. Well not exactly, to be backwards compatible with brainfuck, the tape still holds `uint8` values. But values pushed with the `|` operator can hold values of `uint32`. These pushed values still be recorded as a `uint8` value in the tape but there is another tape that holds the `uint32` values. This secondary tape is always in sync with the primary tape so if you manipulate your `uint8` values, the `uint32` correspondant will also change. 
 
@@ -73,3 +84,6 @@ running the '\+' operator won't make the secondary cell 257, instead it will als
 primary tape is [2, 0, 0, 0, ...]
 secondary tape is [2, 0, 0, 0, ...]
 ```
+
+### IO
+The plan is to make brainfuck be able to read and write to more than one io target that is std. It should be able to read and write to disk, tcp or http connections or any other byte writable stream. This part is still an ongoing process.
