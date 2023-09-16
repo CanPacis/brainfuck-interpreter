@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
+	"io"
 	"net"
 	"strconv"
 
@@ -112,7 +112,7 @@ type Server struct {
 	Type string
 }
 
-func NewDebugger() Debugger {
+func NewDebugger(w io.Writer) Debugger {
 	server := Server{
 		Host: "127.0.0.1",
 		Port: "0",
@@ -124,7 +124,8 @@ func NewDebugger() Debugger {
 		panic(err)
 	}
 
-	fmt.Println(listener.Addr().(*net.TCPAddr).Port)
+	port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+	w.Write([]byte(port))
 	connection, err := listener.Accept()
 
 	if err != nil {

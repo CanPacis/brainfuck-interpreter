@@ -17,7 +17,7 @@ import (
 
 func main() {
   options := runtime.RuntimeOptions{
-    FilePath: "./test/add.bf",
+    FilePath: "./bf/add.bf",
   }
 
   r := runtime.NewRuntime(options)

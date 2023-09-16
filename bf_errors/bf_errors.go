@@ -2,7 +2,7 @@ package bf_errors
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"path"
 
 	"github.com/CanPacis/brainfuck-interpreter/lexer"
@@ -62,16 +62,22 @@ var EmptyError = FileError{
 	Position: lexer.Position{},
 }
 
-func (err FileError) Format(f fmt.State, c rune) {
+func (err FileError) String() string {
+	result := ""
+
 	switch err.Type {
 	case UncaughtError:
-		fmt.Println("Program threw an error:")
+		result += "Program threw an error:\n"
 	case SyntaxError:
-		fmt.Println("There is a syntax error:")
+		result += "There is a syntax error:\n"
 	}
 
-	fmt.Printf("\t'%s' at line %d column %d in %s\n", err.Reason.Error(), err.Position.Line, err.Position.Column, err.FileName)
-	fmt.Printf("\t%s %d:%d\n", err.FilePath, err.Position.Line, err.Position.Column)
+	result += fmt.Sprintf("\t'%s' at line %d column %d in %s\n", err.Reason.Error(), err.Position.Line, err.Position.Column, err.FileName)
+	result += fmt.Sprintf("\t%s %d:%d\n", err.FilePath, err.Position.Line, err.Position.Column)
 
-	os.Exit(1)
+	return result
+}
+
+func (err FileError) Write(w io.Writer) {
+	w.Write([]byte(err.String()))
 }

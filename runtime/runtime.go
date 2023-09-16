@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"bufio"
-	"fmt"
+	"io"
 	"os"
 	"path"
 
@@ -20,6 +20,9 @@ type Runtime struct {
 	Tape     [30000]uint32
 	Band     [30000]byte
 	Cursor   uint
+	Stdout   io.Writer
+	Stdin    io.Reader
+	Stderr   io.Writer
 }
 
 func run(r *Runtime, program []parser.Statement) bf_errors.FileError {
@@ -72,16 +75,8 @@ func run(r *Runtime, program []parser.Statement) bf_errors.FileError {
 			}
 		case "Stdout Statement":
 			switch r.Tape[r.Cursor] {
-			case 257:
-				fileName := string(r.Band[:r.Cursor])
-				file, err := os.ReadFile(fileName)
-
-				if err != nil {
-					return bf_errors.CreateUncaughtError(err, statement.Position, r.Path)
-				}
-				os.Stdout.Write(file)
 			default:
-				os.Stdout.Write([]byte{byte(r.Band[r.Cursor])})
+				r.Stdout.Write([]byte{byte(r.Band[r.Cursor])})
 			}
 		case "Stdin Statement":
 			switch r.Tape[r.Cursor] {
@@ -113,7 +108,7 @@ func (r *Runtime) Run() {
 
 	err := r.Parser.Parse(r.Content)
 	if err.Reason != nil {
-		fmt.Println(err)
+		err.Write(r.Stderr)
 		if r.Debugger.Exists {
 			r.Debugger.Error(err)
 			r.Debugger.Close()
@@ -123,7 +118,7 @@ func (r *Runtime) Run() {
 
 	err = run(r, r.Parser.Program)
 	if err.Reason != nil {
-		fmt.Println(err)
+		err.Write(r.Stderr)
 		if r.Debugger.Exists {
 			r.Debugger.Error(err)
 			r.Debugger.Close()
@@ -134,7 +129,6 @@ func (r *Runtime) Run() {
 	if r.Debugger.Exists {
 		r.Debugger.Close()
 	}
-	os.Stdout.Write([]byte{10})
 }
 
 func (r *Runtime) CreateDebugState(statement parser.Statement) debugger.DebugState {
@@ -147,24 +141,46 @@ func (r *Runtime) CreateDebugState(statement parser.Statement) debugger.DebugSta
 }
 
 type RuntimeOptions struct {
-	FilePath string
-	Debugger debugger.Debugger
+	FilePath       string
+	AttachDebugger bool
+	Stdout         io.Writer
+	Stderr         io.Writer
+	Stdin          io.Reader
 }
 
 func NewRuntime(options RuntimeOptions) *Runtime {
 	name := path.Base(options.FilePath)
 	content, err := os.ReadFile(options.FilePath)
 
+	r := &Runtime{
+		Name:    name,
+		Path:    options.FilePath,
+		Content: string(content),
+		Parser:  parser.NewParser(options.FilePath),
+		Stdout:  options.Stdout,
+		Stdin:   options.Stdin,
+	}
+
+	if r.Stdout == nil {
+		r.Stdout = os.Stdout
+	}
+
+	if r.Stderr == nil {
+		r.Stderr = os.Stderr
+	}
+
+	if r.Stdin == nil {
+		r.Stdin = os.Stdin
+	}
+
+	if options.AttachDebugger {
+		r.Debugger = debugger.NewDebugger(r.Stdout)
+	}
+
 	if err != nil {
-		fmt.Println(err.Error())
+		r.Stderr.Write([]byte(err.Error()))
 		os.Exit(1)
 	}
 
-	return &Runtime{
-		Name:     name,
-		Path:     options.FilePath,
-		Content:  string(content),
-		Debugger: options.Debugger,
-		Parser:   parser.NewParser(options.FilePath),
-	}
+	return r
 }

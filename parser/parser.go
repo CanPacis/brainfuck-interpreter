@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
@@ -69,8 +68,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 			value, err := strconv.Atoi(nextToken.Value)
 
 			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
+				return []Statement{}, 0, token.Position, err
 			}
 
 			statements = append(statements, Statement{Type: "Push Statement", Value: uint32(value), Position: token.Position, DebugTarget: isDebug})
