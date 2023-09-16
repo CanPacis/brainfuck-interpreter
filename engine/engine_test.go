@@ -1,4 +1,4 @@
-package runtime
+package engine
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ func TestAdd(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	r := NewRuntime(RuntimeOptions{
+	r := NewEngine(EngineOptions{
 		FilePath: "../bf/add.bf",
 		Stdout:   &stdout,
 		Stderr:   &stderr,
@@ -33,7 +33,7 @@ func TestAdd(t *testing.T) {
 func TestHelloWorld(t *testing.T) {
 	stdout := bytes.Buffer{}
 
-	r := NewRuntime(RuntimeOptions{
+	r := NewEngine(EngineOptions{
 		FilePath: "../bf/hello_world.bf",
 		Stdout:   &stdout,
 	})

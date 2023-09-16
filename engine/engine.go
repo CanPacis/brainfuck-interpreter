@@ -1,4 +1,4 @@
-package runtime
+package engine
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"github.com/CanPacis/brainfuck-interpreter/parser"
 )
 
-type Runtime struct {
+type Engine struct {
 	Path       string
 	Name       string
 	Content    string
@@ -25,14 +25,14 @@ type Runtime struct {
 	OriginalIo RuntimeIo
 }
 
-func run(r *Runtime, program []parser.Statement) bf_errors.FileError {
+func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 	index := 0
 
 	for ; index < len(program); index++ {
 		statement := program[index]
 
-		if r.Debugger.Exists && statement.DebugTarget {
-			action := r.Debugger.Wait(r.CreateDebugState(statement))
+		if e.Debugger.Exists && statement.DebugTarget {
+			action := e.Debugger.Wait(e.CreateDebugState(statement))
 			switch action.Operation {
 			case "step":
 				if len(program) > index+1 {
@@ -47,49 +47,49 @@ func run(r *Runtime, program []parser.Statement) bf_errors.FileError {
 
 		switch statement.Type {
 		case "Push Statement":
-			r.Band[r.Cursor] = byte(statement.Value)
-			r.Tape[r.Cursor] = statement.Value
+			e.Band[e.Cursor] = byte(statement.Value)
+			e.Tape[e.Cursor] = statement.Value
 		case "Increment Statement":
-			r.Band[r.Cursor]++
-			r.Tape[r.Cursor] = uint32(r.Band[r.Cursor])
+			e.Band[e.Cursor]++
+			e.Tape[e.Cursor] = uint32(e.Band[e.Cursor])
 		case "Decrement Statement":
-			r.Band[r.Cursor]--
-			r.Tape[r.Cursor] = uint32(r.Band[r.Cursor])
+			e.Band[e.Cursor]--
+			e.Tape[e.Cursor] = uint32(e.Band[e.Cursor])
 		case "Clear Statement":
-			r.Tape = [30000]uint32{}
-			r.Band = [30000]byte{}
+			e.Tape = [30000]uint32{}
+			e.Band = [30000]byte{}
 		case "Move Right Statement":
-			if r.Cursor < 30000 {
-				r.Cursor++
+			if e.Cursor < 30000 {
+				e.Cursor++
 			}
 		case "Move Left Statement":
-			if r.Cursor > 0 {
-				r.Cursor--
+			if e.Cursor > 0 {
+				e.Cursor--
 			}
 		case "Loop Statement":
-			for r.Band[r.Cursor] != 0 {
-				err := run(r, statement.Body)
+			for e.Band[e.Cursor] != 0 {
+				err := run(e, statement.Body)
 				if err.Reason != nil {
 					return err
 				}
 			}
 		case "Stdout Statement":
-			switch r.Tape[r.Cursor] {
+			switch e.Tape[e.Cursor] {
 			default:
-				r.Io.Out.Write([]byte{byte(r.Band[r.Cursor])})
+				e.Io.Out.Write([]byte{byte(e.Band[e.Cursor])})
 			}
 		case "Stdin Statement":
-			switch r.Tape[r.Cursor] {
+			switch e.Tape[e.Cursor] {
 			default:
 				reader := bufio.NewReader(os.Stdin)
 				char, _, err := reader.ReadRune()
 
 				if err != nil {
-					return bf_errors.CreateUncaughtError(err, statement.Position, r.Path)
+					return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
 				}
 
-				r.Band[r.Cursor] = byte(char)
-				r.Tape[r.Cursor] = uint32(r.Band[r.Cursor])
+				e.Band[e.Cursor] = byte(char)
+				e.Tape[e.Cursor] = uint32(e.Band[e.Cursor])
 			}
 		case "Switch IO Statement":
 			fmt.Println(statement.IoTarget)
@@ -99,46 +99,46 @@ func run(r *Runtime, program []parser.Statement) bf_errors.FileError {
 	return bf_errors.EmptyError
 }
 
-func (r *Runtime) Run() {
-	if r.Debugger.Exists {
-		r.Debugger.Open(debugger.DebugMetaData{
-			FileName: r.Name,
-			FilePath: r.Path,
-			Content:  r.Content,
+func (e *Engine) Run() {
+	if e.Debugger.Exists {
+		e.Debugger.Open(debugger.DebugMetaData{
+			FileName: e.Name,
+			FilePath: e.Path,
+			Content:  e.Content,
 		})
 	}
 
-	err := r.Parser.Parse(r.Content)
+	err := e.Parser.Parse(e.Content)
 	if err.Reason != nil {
-		err.Write(r.Io.Err)
-		if r.Debugger.Exists {
-			r.Debugger.Error(err)
-			r.Debugger.Close()
+		err.Write(e.Io.Err)
+		if e.Debugger.Exists {
+			e.Debugger.Error(err)
+			e.Debugger.Close()
 		}
 		os.Exit(1)
 	}
 
-	err = run(r, r.Parser.Program)
+	err = run(e, e.Parser.Program)
 	if err.Reason != nil {
-		err.Write(r.Io.Err)
-		if r.Debugger.Exists {
-			r.Debugger.Error(err)
-			r.Debugger.Close()
+		err.Write(e.Io.Err)
+		if e.Debugger.Exists {
+			e.Debugger.Error(err)
+			e.Debugger.Close()
 		}
 		os.Exit(1)
 	}
 
-	if r.Debugger.Exists {
-		r.Debugger.Close()
+	if e.Debugger.Exists {
+		e.Debugger.Close()
 	}
 }
 
-func (r *Runtime) CreateDebugState(statement parser.Statement) debugger.DebugState {
+func (e *Engine) CreateDebugState(statement parser.Statement) debugger.DebugState {
 	return debugger.DebugState{
 		Statement: statement,
-		Cursor:    r.Cursor,
-		Tape:      r.Tape[:100],
-		Band:      r.Band[:100],
+		Cursor:    e.Cursor,
+		Tape:      e.Tape[:100],
+		Band:      e.Band[:100],
 	}
 }
 
@@ -148,7 +148,7 @@ type RuntimeIo struct {
 	In  io.Reader
 }
 
-type RuntimeOptions struct {
+type EngineOptions struct {
 	FilePath       string
 	AttachDebugger bool
 	Stdout         io.Writer
@@ -156,7 +156,7 @@ type RuntimeOptions struct {
 	Stdin          io.Reader
 }
 
-func NewRuntime(options RuntimeOptions) *Runtime {
+func NewEngine(options EngineOptions) *Engine {
 	name := path.Base(options.FilePath)
 	content, err := os.ReadFile(options.FilePath)
 
@@ -166,7 +166,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		Err: options.Stderr,
 	}
 
-	r := &Runtime{
+	r := &Engine{
 		Name:    name,
 		Path:    options.FilePath,
 		Content: string(content),
