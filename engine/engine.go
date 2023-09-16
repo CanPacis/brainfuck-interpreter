@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -23,6 +22,7 @@ type Engine struct {
 	Cursor     uint
 	Io         RuntimeIo
 	OriginalIo RuntimeIo
+	cleanups   []func()
 }
 
 func run(e *Engine, program []parser.Statement) bf_errors.FileError {
@@ -92,11 +92,34 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 				e.Tape[e.Cursor] = uint32(e.Band[e.Cursor])
 			}
 		case "Switch IO Statement":
-			fmt.Println(statement.IoTarget)
+			switch statement.IoTarget {
+			case "std":
+				e.Io = e.OriginalIo
+			case "file":
+				file, err := os.OpenFile("output.txt", os.O_WRONLY|os.O_CREATE, 0644)
+				e.cleanups = append(e.cleanups, func() {
+					file.Close()
+				})
+
+				if err != nil {
+					return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
+				}
+
+				e.Io = RuntimeIo{
+					Out: file,
+					Err: file,
+				}
+			}
 		}
 	}
 
 	return bf_errors.EmptyError
+}
+
+func (e Engine) cleanup() {
+	for _, f := range e.cleanups {
+		f()
+	}
 }
 
 func (e *Engine) Run() {
@@ -110,6 +133,7 @@ func (e *Engine) Run() {
 
 	err := e.Parser.Parse(e.Content)
 	if err.Reason != nil {
+		e.cleanup()
 		err.Write(e.Io.Err)
 		if e.Debugger.Exists {
 			e.Debugger.Error(err)
@@ -120,6 +144,7 @@ func (e *Engine) Run() {
 
 	err = run(e, e.Parser.Program)
 	if err.Reason != nil {
+		e.cleanup()
 		err.Write(e.Io.Err)
 		if e.Debugger.Exists {
 			e.Debugger.Error(err)
@@ -131,6 +156,8 @@ func (e *Engine) Run() {
 	if e.Debugger.Exists {
 		e.Debugger.Close()
 	}
+
+	e.cleanup()
 }
 
 func (e *Engine) CreateDebugState(statement parser.Statement) debugger.DebugState {
