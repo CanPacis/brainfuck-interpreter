@@ -1,5 +1,9 @@
 package lexer
 
+import (
+	"strings"
+)
+
 type Position struct {
 	Line   uint `json:"line"`
 	Column uint `json:"column"`
@@ -16,6 +20,8 @@ type Lexer struct {
 	CurrentPosition Position
 }
 
+var Keywords = []string{"file", "std", "http", "tcp"}
+
 func (l *Lexer) CreateToken(t, value string) Token {
 	token := Token{
 		Type:  t,
@@ -26,7 +32,7 @@ func (l *Lexer) CreateToken(t, value string) Token {
 		},
 	}
 
-	if t == "NewLine" {
+	if t == "new_line" {
 		l.CurrentPosition.Line++
 		l.CurrentPosition.Column = 1
 	} else {
@@ -70,6 +76,9 @@ func (l *Lexer) Lex(input string) {
 		case '\\':
 			l.CreateToken("escape", "\\\\")
 			index++
+		case 'u':
+			consumed := l.LexUse(input[index:])
+			index += consumed
 		default:
 			if char < 58 && char > 47 {
 				consumed := l.LexNumber(input[index:])
@@ -78,10 +87,48 @@ func (l *Lexer) Lex(input string) {
 				consumed := l.LexDebug(input[index:])
 				index += consumed
 			} else {
-				l.CurrentPosition.Column++
+				for _, keyword := range Keywords {
+					if strings.HasPrefix(keyword, string(input[index])) {
+						consumed := l.LexKeyword(input[index:])
+						index += consumed
+					}
+				}
 			}
 		}
 
+	}
+}
+
+func (l *Lexer) LexKeyword(input string) int {
+	if len(input) > 2 {
+		for _, keyword := range Keywords {
+			if input[:3] == keyword {
+				l.Tokens = append(l.Tokens, l.CreateToken("keyword", keyword))
+				return 2
+			}
+		}
+	}
+
+	if len(input) > 3 {
+		for _, keyword := range Keywords {
+			if input[:4] == keyword {
+				l.Tokens = append(l.Tokens, l.CreateToken("keyword", keyword))
+				return 3
+			}
+		}
+	}
+
+	l.CurrentPosition.Column++
+	return 0
+}
+
+func (l *Lexer) LexUse(input string) int {
+	if input[:3] == "use" {
+		l.Tokens = append(l.Tokens, l.CreateToken("use", "use"))
+		return 2
+	} else {
+		l.CurrentPosition.Column++
+		return 0
 	}
 }
 

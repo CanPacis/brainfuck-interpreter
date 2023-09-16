@@ -11,6 +11,7 @@ import (
 type Statement struct {
 	Type        string      `json:"type"`
 	Value       uint32      `json:"value"`
+	IoTarget    string      `json:"io_target"`
 	Body        []Statement `json:"body"`
 	DebugTarget bool
 	lexer.Position
@@ -54,6 +55,25 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 			isDebug = false
 		case "debug":
 			isDebug = true
+		case "use":
+			if index+3 > len(tokens) {
+				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, expected io target")
+			}
+
+			spaceToken := tokens[index+1]
+
+			if spaceToken.Type != "space" {
+				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected %s token, expected whitespace", spaceToken.Type)
+			}
+
+			nextToken := tokens[index+2]
+
+			if nextToken.Type != "keyword" {
+				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected %s token, expected keyword", nextToken.Type)
+			}
+
+			statements = append(statements, Statement{Type: "Switch IO Statement", IoTarget: nextToken.Value, Position: token.Position})
+			isDebug = false
 		case "bar":
 			if index+2 > len(tokens) {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, expected number")
