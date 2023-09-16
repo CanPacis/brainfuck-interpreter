@@ -2,7 +2,7 @@
 
 This is a brainfuck interpreter that is built with a lexer, a parser and a debugger protocol. 
 
-> Important: Currently there isn't a debugger client. If you run your program with a debugger attached, the program with wait for a client to connect and do nothing else.
+> Important: Currently there isn't a debugger client. If you run your program with a debugger attached, the program will wait for a client to connect and do nothing else.
 
 ## Running a script
 
@@ -17,8 +17,8 @@ import (
 
 func main() {
   options := runtime.RuntimeOptions{
-		FilePath: "./test/add.bf",
-	}
+    FilePath: "./test/add.bf",
+  }
 
   r := runtime.NewRuntime(options)
   // then simply run it
