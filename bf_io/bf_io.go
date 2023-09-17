@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"sync"
+
+	"github.com/CanPacis/brainfuck-interpreter/waiter"
 )
 
 type RuntimeIO struct {
@@ -59,7 +60,7 @@ func FileIO(fileName string) (RuntimeIO, func() error, error) {
 	return io, file.Close, nil
 }
 
-func HttpIO(port string, file_resource string, io_targets []RuntimeIO, waiters map[string]*sync.WaitGroup) {
+func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters waiter.EngineWaiter) {
 	var contentType string
 
 	if path.Ext(file_resource) == ".json" {
@@ -77,20 +78,28 @@ func HttpIO(port string, file_resource string, io_targets []RuntimeIO, waiters m
 			w.Header().Set("content-type", contentType)
 		}
 
-		waiters["write"].Add(1)
+		waiters.Add("write", 1)
 		io := RuntimeIO{
 			Out: w,
 			Err: os.Stderr,
 			In:  os.Stdin,
 		}
 
-		io_targets = append(io_targets, *io.Set(io))
-		waiters["http"].Done()
-
-		waiters["write"].Wait()
+		*io_targets = append(*io_targets, *io.Set(io))
+		waiters.Done("http")
+		waiters.Wait("write")
 	})
 
-	waiters["program"].Add(1)
-	waiters["http"].Add(1)
+	waiters.Add("program", 1)
+	waiters.Add("http", 1)
 	go http.ListenAndServe(port, nil)
 }
+
+type IOTargetType = string
+
+var (
+	Http IOTargetType = "http"
+	Tcp  IOTargetType = "tcp"
+	File IOTargetType = "file"
+	Std  IOTargetType = "std"
+)

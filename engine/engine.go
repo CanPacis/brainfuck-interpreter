@@ -10,6 +10,7 @@ import (
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
 	"github.com/CanPacis/brainfuck-interpreter/debugger"
 	"github.com/CanPacis/brainfuck-interpreter/parser"
+	"github.com/CanPacis/brainfuck-interpreter/waiter"
 )
 
 type Engine struct {
@@ -22,10 +23,10 @@ type Engine struct {
 	Cursor       uint
 	IOTargets    []bf_io.RuntimeIO
 	IOSourceList bf_io.IOSourceList
-	ioTargetType string
+	ioTargetType bf_io.IOTargetType
 	originalIO   bf_io.RuntimeIO
 	disposers    []func()
-	waiters      map[string]*sync.WaitGroup
+	waiters      waiter.EngineWaiter
 }
 
 func run(e *Engine, program []parser.Statement) bf_errors.FileError {
@@ -71,11 +72,11 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 				}
 			}
 		case "Stdout Statement":
-			if e.ioTargetType == "http" && len(e.IOTargets) == 0 {
-				e.waiters["http"].Wait()
+			if e.ioTargetType == bf_io.Http && len(e.IOTargets) == 0 {
+				e.waiters.Wait("http")
 			}
 			for _, target := range e.IOTargets {
-				if e.ioTargetType == "http" {
+				if e.ioTargetType == bf_io.Http {
 					if e.Tape[e.Cursor] != 0 {
 						target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
 					}
@@ -83,10 +84,10 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 					target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
 				}
 			}
-			if e.ioTargetType == "http" && e.Tape[e.Cursor] == 0 {
+			if e.ioTargetType == bf_io.Http && e.Tape[e.Cursor] == 0 {
 				e.IOTargets = []bf_io.RuntimeIO{}
-				e.waiters["http"].Add(1)
-				e.waiters["write"].Done()
+				e.waiters.Add("http", 1)
+				e.waiters.Done("write")
 			}
 		case "Stdin Statement":
 			target := e.IOTargets[0]
@@ -102,7 +103,7 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 				e.IOTargets = []bf_io.RuntimeIO{e.originalIO}
 			case "http":
 				e.IOTargets = []bf_io.RuntimeIO{}
-				bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, e.IOTargets, e.waiters)
+				bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, &e.IOTargets, e.waiters)
 			case "tcp":
 				e.originalIO.Out.Write([]byte("tcp"))
 			case "file":
@@ -164,7 +165,7 @@ func (e *Engine) Run() {
 		os.Exit(1)
 	}
 
-	e.waiters["program"].Wait()
+	e.waiters.Wait("program")
 	e.dispose(bf_errors.EmptyError)
 }
 
@@ -201,10 +202,10 @@ func NewEngine(options EngineOptions) *Engine {
 		Content:   string(content),
 		Parser:    parser.NewParser(options.FilePath),
 		IOTargets: []bf_io.RuntimeIO{std},
-		waiters: map[string]*sync.WaitGroup{
-			"program": {},
-			"http":    {},
-			"write":   {},
+		waiters: waiter.EngineWaiter{
+			Program:        &sync.WaitGroup{},
+			HttpConnection: &sync.WaitGroup{},
+			Write:          &sync.WaitGroup{},
 		},
 		IOSourceList: options.IOSourceList,
 	}
@@ -219,7 +220,7 @@ func NewEngine(options EngineOptions) *Engine {
 
 	e.IOTargets[0].Set(e.IOTargets[0])
 	e.originalIO.Set(e.IOTargets[0])
-	e.ioTargetType = "std"
+	e.ioTargetType = bf_io.Std
 
 	if options.AttachDebugger {
 		e.Debugger = debugger.NewDebugger(e.originalIO.Out)
