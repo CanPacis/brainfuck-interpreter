@@ -80,7 +80,7 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 			w.Header().Set("content-type", contentType)
 		}
 
-		waiters.Add("write", 1)
+		waiters.Add(waiter.Write, 1)
 		io := RuntimeIO{
 			Out: w,
 			Err: os.Stderr,
@@ -88,12 +88,12 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 		}
 
 		*io_targets = append(*io_targets, *io.Set(io))
-		waiters.Done("http")
-		waiters.Wait("write")
+		waiters.Done(waiter.HttpConnection)
+		waiters.Wait(waiter.Write)
 	})
 
-	waiters.Add("program", 1)
-	waiters.Add("http", 1)
+	waiters.Add(waiter.Program, 1)
+	waiters.Add(waiter.HttpConnection, 1)
 	go srv.ListenAndServe()
 
 	return srv

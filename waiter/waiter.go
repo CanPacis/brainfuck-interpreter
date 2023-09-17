@@ -8,35 +8,43 @@ type EngineWaiter struct {
 	Write          *sync.WaitGroup
 }
 
+type Waiter = string
+
+var (
+	Program        Waiter = "program"
+	HttpConnection Waiter = "http-connection"
+	Write          Waiter = "write"
+)
+
 func (w *EngineWaiter) Wait(target string) {
 	switch target {
-	case "program":
+	case Program:
 		w.Program.Wait()
-	case "http":
+	case HttpConnection:
 		w.HttpConnection.Wait()
-	case "write":
+	case Write:
 		w.Write.Wait()
 	}
 }
 
 func (w *EngineWaiter) Add(target string, amount int) {
 	switch target {
-	case "program":
+	case Program:
 		w.Program.Add(amount)
-	case "http":
+	case HttpConnection:
 		w.HttpConnection.Add(amount)
-	case "write":
+	case Write:
 		w.Write.Add(amount)
 	}
 }
 
 func (w *EngineWaiter) Done(target string) {
 	switch target {
-	case "program":
+	case Program:
 		w.Program.Done()
-	case "http":
+	case HttpConnection:
 		w.HttpConnection.Done()
-	case "write":
+	case Write:
 		w.Write.Done()
 	}
 }

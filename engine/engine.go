@@ -134,7 +134,7 @@ func (e *Engine) Run() {
 		os.Exit(1)
 	}
 
-	e.waiters.Wait("program")
+	e.waiters.Wait(waiter.Program)
 	e.dispose(bf_errors.EmptyError)
 }
 

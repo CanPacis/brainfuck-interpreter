@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
-	"github.com/CanPacis/brainfuck-interpreter/debugger"
 	"github.com/CanPacis/brainfuck-interpreter/engine"
 	"github.com/alecthomas/kong"
 )
@@ -27,12 +23,7 @@ func (r *Run) Run(ctx *kong.Context) error {
 		},
 	})
 
-	w := bytes.Buffer{}
-	re := bytes.Buffer{}
-	e.Debugger = debugger.NewDebugger(&w, &re)
-
 	e.Run()
-	fmt.Println(w.String())
 	return nil
 }
 

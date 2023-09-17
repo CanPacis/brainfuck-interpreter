@@ -1,9 +1,6 @@
 package debugger
 
 import (
-	"bufio"
-	"encoding/json"
-	"io"
 	"net"
 
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
@@ -13,8 +10,6 @@ import (
 
 type Debugger struct {
 	Exists   bool
-	Reader   *bufio.Reader
-	Writer   *bufio.Writer
 	listener net.Listener
 	// clients  DebugClient
 }
@@ -89,10 +84,7 @@ func (d Debugger) Error(err bf_errors.RuntimeError) {
 	// d.client.Send(err)
 }
 
-func (d Debugger) Share(data interface{}) Action {
-	encoded, _ := json.Marshal(data)
-	d.Writer.Write(encoded)
-	return Action{}
+func (d Debugger) Share(data interface{}) {
 }
 
 // func (d Debugger) Wait(state State) DebugAction {
@@ -127,7 +119,7 @@ type Server struct {
 	Type string
 }
 
-func NewDebugger(w io.Writer, r io.Reader) Debugger {
+func NewDebugger() Debugger {
 	// server := Server{
 	// 	Host: "127.0.0.1",
 	// 	Port: "0",
@@ -149,8 +141,6 @@ func NewDebugger(w io.Writer, r io.Reader) Debugger {
 
 	return Debugger{
 		Exists: true,
-		Writer: bufio.NewWriter(w),
-		Reader: bufio.NewReader(r),
 		// listener: listener,
 		// client:   DebugClient{connection},
 	}

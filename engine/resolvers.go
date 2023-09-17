@@ -8,6 +8,7 @@ import (
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
 	"github.com/CanPacis/brainfuck-interpreter/parser"
+	"github.com/CanPacis/brainfuck-interpreter/waiter"
 )
 
 func (e *Engine) r_increment_s() {
@@ -55,7 +56,7 @@ func (e *Engine) r_loop_s(statement parser.Statement) bf_errors.RuntimeError {
 
 func (e *Engine) r_stdout_s(statement parser.Statement) bf_errors.RuntimeError {
 	if e.ioTargetType == bf_io.Http && len(e.IOTargets) == 0 {
-		e.waiters.Wait("http")
+		e.waiters.Wait(waiter.HttpConnection)
 	}
 	for _, target := range e.IOTargets {
 		if e.ioTargetType == bf_io.Http {
@@ -70,8 +71,8 @@ func (e *Engine) r_stdout_s(statement parser.Statement) bf_errors.RuntimeError {
 	}
 	if e.ioTargetType == bf_io.Http && e.Tape[e.Cursor] == 0 {
 		e.IOTargets = []bf_io.RuntimeIO{}
-		e.waiters.Add("http", 1)
-		e.waiters.Done("write")
+		e.waiters.Add(waiter.HttpConnection, 1)
+		e.waiters.Done(waiter.Write)
 	}
 
 	return bf_errors.EmptyError
@@ -96,9 +97,10 @@ func (e *Engine) r_stdin_s(statement parser.Statement) bf_errors.RuntimeError {
 
 func (e *Engine) r_switch_io_s(statement parser.Statement) bf_errors.RuntimeError {
 	// while swtiching io methods, sometimes http server may not spin up, this waits for it
+	// I know I need to solve this
 	time.Sleep(time.Millisecond)
 	if e.ioTargetType == bf_io.Http {
-		e.waiters.Done("program")
+		e.waiters.Done(waiter.Program)
 		if e.httpServer != nil {
 			e.httpServer.Close()
 		}
@@ -124,8 +126,7 @@ func (e *Engine) r_switch_io_s(statement parser.Statement) bf_errors.RuntimeErro
 			close()
 		})
 
-		io.Set(io)
-		e.IOTargets = []bf_io.RuntimeIO{io}
+		e.IOTargets = []bf_io.RuntimeIO{*io.Set(io)}
 	}
 
 	return bf_errors.EmptyError
