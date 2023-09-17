@@ -45,8 +45,23 @@ func file_io(fileName string) (RuntimeIO, func() error, error) {
 }
 
 func http_io(port string, e *Engine) {
+	var contentType string
+
+	if path.Ext(e.IOSourceList.File) == ".json" {
+		contentType = "application/json"
+	} else {
+		file, err := os.ReadFile(e.IOSourceList.File)
+
+		if err != nil {
+			contentType = http.DetectContentType(file)
+		}
+	}
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "text/html")
+		if len(contentType) != 0 {
+			w.Header().Set("content-type", contentType)
+		}
+
 		e.waiters["write"].Add(1)
 		io := RuntimeIO{
 			Out: w,
