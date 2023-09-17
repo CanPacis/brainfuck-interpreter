@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
 	"github.com/CanPacis/brainfuck-interpreter/lexer"
@@ -55,7 +54,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 			isDebug = false
 		case "debug":
 			isDebug = true
-		case "use":
+		case "io":
 			if index+3 > len(tokens) {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, expected io target")
 			}
@@ -73,25 +72,6 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 			}
 
 			statements = append(statements, Statement{Type: "Switch IO Statement", IoTarget: nextToken.Value, Position: token.Position})
-			isDebug = false
-		case "bar":
-			if index+2 > len(tokens) {
-				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected end of file, expected number")
-			}
-
-			nextToken := tokens[index+1]
-
-			if nextToken.Type != "number" {
-				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected %s token, expected number", nextToken.Type)
-			}
-
-			value, err := strconv.Atoi(nextToken.Value)
-
-			if err != nil {
-				return []Statement{}, 0, token.Position, err
-			}
-
-			statements = append(statements, Statement{Type: "Push Statement", Value: uint32(value), Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
 		case "loop_open":
 			if index+2 > len(tokens) {

@@ -26,8 +26,7 @@ type DebugMetaData struct {
 
 type DebugState struct {
 	Statement parser.Statement `json:"statement"`
-	Band      []byte           `json:"band"`
-	Tape      []uint32         `json:"tape"`
+	Tape      []byte           `json:"band"`
 	Cursor    uint             `json:"cursor"`
 }
 

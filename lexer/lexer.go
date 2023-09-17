@@ -65,8 +65,6 @@ func (l *Lexer) Lex(input string) {
 			l.Tokens = append(l.Tokens, l.CreateToken("loop_open", "["))
 		case ']':
 			l.Tokens = append(l.Tokens, l.CreateToken("loop_close", "]"))
-		case '|':
-			l.Tokens = append(l.Tokens, l.CreateToken("bar", "|"))
 		case '*':
 			l.Tokens = append(l.Tokens, l.CreateToken("star", "*"))
 		case 32:
@@ -76,14 +74,11 @@ func (l *Lexer) Lex(input string) {
 		case '\\':
 			l.CreateToken("escape", "\\\\")
 			index++
-		case 'u':
-			consumed := l.LexUse(input[index:])
+		case 'i':
+			consumed := l.LexIoKeyword(input[index:])
 			index += consumed
 		default:
-			if char < 58 && char > 47 {
-				consumed := l.LexNumber(input[index:])
-				index += consumed
-			} else if char == 'd' {
+			if char == 'd' {
 				consumed := l.LexDebug(input[index:])
 				index += consumed
 			} else {
@@ -122,10 +117,14 @@ func (l *Lexer) LexKeyword(input string) int {
 	return 0
 }
 
-func (l *Lexer) LexUse(input string) int {
-	if input[:3] == "use" {
-		l.Tokens = append(l.Tokens, l.CreateToken("use", "use"))
-		return 2
+func (l *Lexer) LexIoKeyword(input string) int {
+	if len(input) < 2 {
+		return 0
+	}
+
+	if input[:2] == "io" {
+		l.Tokens = append(l.Tokens, l.CreateToken("io", "io"))
+		return 1
 	} else {
 		l.CurrentPosition.Column++
 		return 0
@@ -142,25 +141,25 @@ func (l *Lexer) LexDebug(input string) int {
 	}
 }
 
-func (l *Lexer) LexNumber(input string) int {
-	index := 0
-	consumed := 0
-	number := ""
+// func (l *Lexer) LexNumber(input string) int {
+// 	index := 0
+// 	consumed := 0
+// 	number := ""
 
-	for index < len(input) {
-		char := input[index]
+// 	for index < len(input) {
+// 		char := input[index]
 
-		index++
-		consumed++
-		if char < 58 && char > 47 {
-			number += string(char)
-		} else {
-			consumed--
-			break
-		}
-	}
+// 		index++
+// 		consumed++
+// 		if char < 58 && char > 47 {
+// 			number += string(char)
+// 		} else {
+// 			consumed--
+// 			break
+// 		}
+// 	}
 
-	l.Tokens = append(l.Tokens, l.CreateToken("number", number))
+// 	l.Tokens = append(l.Tokens, l.CreateToken("number", number))
 
-	return consumed - 1
-}
+// 	return consumed - 1
+// }
