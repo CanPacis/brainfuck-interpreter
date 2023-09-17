@@ -96,7 +96,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 	return statements, index + 1, lexer.Position{}, nil
 }
 
-func (p *Parser) Parse(input string) bf_errors.FileError {
+func (p *Parser) Parse(input string) bf_errors.RuntimeError {
 	p.Lexer.Lex(input)
 
 	statments, _, position, err := parse(p.Lexer.Tokens)

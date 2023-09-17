@@ -11,10 +11,11 @@ import (
 const (
 	UncaughtError = iota
 	SyntaxError
-	StackOverflow
+	StackOverflowError
+	StackUnderflowError
 )
 
-type FileError struct {
+type RuntimeError struct {
 	Type     int    `json:"type"`
 	FileName string `json:"file_name"`
 	FilePath string `json:"file_path"`
@@ -22,21 +23,22 @@ type FileError struct {
 	Position lexer.Position
 }
 
-func CreateError(err error, position lexer.Position, filePath string) FileError {
+func CreateError(err error, position lexer.Position, typ int, filePath string) RuntimeError {
 	fileName := path.Base(filePath)
 
-	return FileError{
+	return RuntimeError{
 		Reason:   err,
+		Type:     typ,
 		Position: position,
 		FileName: fileName,
 		FilePath: filePath,
 	}
 }
 
-func CreateSyntaxError(reason error, position lexer.Position, filePath string) FileError {
+func CreateSyntaxError(reason error, position lexer.Position, filePath string) RuntimeError {
 	fileName := path.Base(filePath)
 
-	return FileError{
+	return RuntimeError{
 		Type:     SyntaxError,
 		Reason:   reason,
 		Position: position,
@@ -45,10 +47,10 @@ func CreateSyntaxError(reason error, position lexer.Position, filePath string) F
 	}
 }
 
-func CreateUncaughtError(reason error, position lexer.Position, filePath string) FileError {
+func CreateUncaughtError(reason error, position lexer.Position, filePath string) RuntimeError {
 	fileName := path.Base(filePath)
 
-	return FileError{
+	return RuntimeError{
 		Type:     UncaughtError,
 		Reason:   reason,
 		Position: position,
@@ -57,12 +59,12 @@ func CreateUncaughtError(reason error, position lexer.Position, filePath string)
 	}
 }
 
-var EmptyError = FileError{
+var EmptyError = RuntimeError{
 	Reason:   nil,
 	Position: lexer.Position{},
 }
 
-func (err FileError) String() string {
+func (err RuntimeError) String() string {
 	result := ""
 
 	switch err.Type {
@@ -70,6 +72,10 @@ func (err FileError) String() string {
 		result += "Program threw an error:\n"
 	case SyntaxError:
 		result += "There is a syntax error:\n"
+	case StackOverflowError:
+		result += "Stack overflow:"
+	case StackUnderflowError:
+		result += "Stack underflow:"
 	}
 
 	result += fmt.Sprintf("\t'%s' at line %d column %d in %s\n", err.Reason.Error(), err.Position.Line, err.Position.Column, err.FileName)
@@ -78,6 +84,6 @@ func (err FileError) String() string {
 	return result
 }
 
-func (err FileError) Write(w io.Writer) {
+func (err RuntimeError) Write(w io.Writer) {
 	w.Write([]byte(err.String()))
 }

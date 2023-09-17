@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
@@ -32,110 +31,59 @@ type Engine struct {
 	httpServer   *http.Server
 }
 
-func run(e *Engine, program []parser.Statement) bf_errors.FileError {
+func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
 	index := 0
 
 	for ; index < len(program); index++ {
 		statement := program[index]
 
-		if e.Debugger.Exists && statement.DebugTarget {
-			action := e.Debugger.Wait(e.CreateDebugState(statement))
-			switch action.Operation {
-			case "step":
-				if len(program) > index+1 {
-					program[index+1].DebugTarget = true
-				}
-			case "step-over":
-				index++
-			case "step-out":
-				return bf_errors.EmptyError
-			}
+		if e.Debugger.Exists {
+			e.Debugger.Share(e.CreateDebugState(statement))
 		}
+		// if e.Debugger.Exists && statement.DebugTarget {
+		// 	action := e.Debugger.Wait(e.CreateDebugState(statement))
+		// 	switch action.Operation {
+		// 	case "step":
+		// 		if len(program) > index+1 {
+		// 			program[index+1].DebugTarget = true
+		// 		}
+		// 	case "step-over":
+		// 		index++
+		// 	case "step-out":
+		// 		return bf_errors.EmptyError
+		// 	}
+		// }
 
 		switch statement.Type {
 		case "Increment Statement":
-			e.Tape[e.Cursor]++
+			e.r_increment_s()
 		case "Decrement Statement":
-			e.Tape[e.Cursor]--
+			e.r_decrement_s()
 		case "Clear Statement":
-			e.Tape = [30000]byte{}
+			e.r_clear_s()
 		case "Move Right Statement":
-			if e.Cursor < 30000 {
-				e.Cursor++
+			if err := e.r_move_right_s(statement); err.Reason != nil {
+				return err
 			}
 		case "Move Left Statement":
-			if e.Cursor > 0 {
-				e.Cursor--
+			if err := e.r_move_left_s(statement); err.Reason != nil {
+				return err
 			}
 		case "Loop Statement":
-			for e.Tape[e.Cursor] != 0 {
-				err := run(e, statement.Body)
-				if err.Reason != nil {
-					return err
-				}
+			if err := e.r_loop_s(statement); err.Reason != nil {
+				return err
 			}
 		case "Stdout Statement":
-			if e.ioTargetType == bf_io.Http && len(e.IOTargets) == 0 {
-				e.waiters.Wait("http")
-			}
-			for _, target := range e.IOTargets {
-				if e.ioTargetType == bf_io.Http {
-					if e.Tape[e.Cursor] != 0 {
-						target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
-					}
-				} else {
-					target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
-				}
-			}
-			if e.ioTargetType == bf_io.Http && e.Tape[e.Cursor] == 0 {
-				e.IOTargets = []bf_io.RuntimeIO{}
-				e.waiters.Add("http", 1)
-				e.waiters.Done("write")
+			if err := e.r_stdout_s(statement); err.Reason != nil {
+				return err
 			}
 		case "Stdin Statement":
-			var target bf_io.RuntimeIO
-
-			if len(e.IOTargets) == 0 {
-				target = e.originalIO
-			} else {
-				target = e.IOTargets[0]
+			if err := e.r_stdin_s(statement); err.Reason != nil {
+				return err
 			}
-			byte, err := target.Reader.ReadByte()
-			if err != nil && err != io.EOF {
-				return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
-			}
-			e.Tape[e.Cursor] = byte
 		case "Switch IO Statement":
-			time.Sleep(time.Millisecond)
-			if e.ioTargetType == bf_io.Http {
-				e.waiters.Done("program")
-				if e.httpServer != nil {
-					e.httpServer.Close()
-				}
-			}
-
-			e.ioTargetType = statement.IOTarget
-			switch statement.IOTarget {
-			case "std":
-				e.IOTargets = []bf_io.RuntimeIO{e.originalIO}
-			case "http":
-				e.IOTargets = []bf_io.RuntimeIO{}
-				e.httpServer = bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, &e.IOTargets, e.waiters)
-			case "tcp":
-				e.originalIO.Out.Write([]byte("tcp"))
-			case "file":
-				io, close, err := bf_io.FileIO(e.IOSourceList.File)
-
-				if err != nil {
-					return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
-				}
-
-				e.disposers = append(e.disposers, func() {
-					close()
-				})
-
-				io.Set(io)
-				e.IOTargets = []bf_io.RuntimeIO{io}
+			if err := e.r_switch_io_s(statement); err.Reason != nil {
+				return err
 			}
 		}
 	}
@@ -143,7 +91,7 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 	return bf_errors.EmptyError
 }
 
-func (e *Engine) dispose(err bf_errors.FileError) {
+func (e *Engine) dispose(err bf_errors.RuntimeError) {
 	for _, disposer := range e.disposers {
 		disposer()
 	}
@@ -166,13 +114,13 @@ func (e *Engine) dispose(err bf_errors.FileError) {
 }
 
 func (e *Engine) Run() {
-	if e.Debugger.Exists {
-		e.Debugger.Open(debugger.DebugMetaData{
-			FileName: e.Name,
-			FilePath: e.Path,
-			Content:  e.Content,
-		})
-	}
+	// if e.Debugger.Exists {
+	// 	e.Debugger.Open(debugger.MetaData{
+	// 		FileName: e.Name,
+	// 		FilePath: e.Path,
+	// 		Content:  e.Content,
+	// 	})
+	// }
 
 	err := e.Parser.Parse(e.Content)
 	if err.Reason != nil {
@@ -190,8 +138,8 @@ func (e *Engine) Run() {
 	e.dispose(bf_errors.EmptyError)
 }
 
-func (e *Engine) CreateDebugState(statement parser.Statement) debugger.DebugState {
-	return debugger.DebugState{
+func (e *Engine) CreateDebugState(statement parser.Statement) debugger.State {
+	return debugger.State{
 		Statement: statement,
 		Cursor:    e.Cursor,
 		Tape:      e.Tape[:100],
@@ -243,9 +191,9 @@ func NewEngine(options EngineOptions) *Engine {
 	e.originalIO.Set(e.IOTargets[0])
 	e.ioTargetType = bf_io.Std
 
-	if options.AttachDebugger {
-		e.Debugger = debugger.NewDebugger(e.originalIO.Out)
-	}
+	// if options.AttachDebugger {
+	// 	e.Debugger = debugger.NewDebugger(e.originalIO.Out)
+	// }
 
 	if err != nil {
 		e.originalIO.Err.Write([]byte(err.Error()))
