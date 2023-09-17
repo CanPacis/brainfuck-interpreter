@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/CanPacis/brainfuck-interpreter/bf_io"
 	"github.com/CanPacis/brainfuck-interpreter/engine"
 	"github.com/alecthomas/kong"
 )
@@ -16,7 +17,7 @@ func (r *Run) Run(ctx *kong.Context) error {
 	e := engine.NewEngine(engine.EngineOptions{
 		FilePath:       r.Path,
 		AttachDebugger: r.Debug,
-		IOSourceList: engine.IOSourceList{
+		IOSourceList: bf_io.IOSourceList{
 			File: r.File,
 			Http: r.Http,
 		},
