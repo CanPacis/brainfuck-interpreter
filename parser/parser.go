@@ -10,7 +10,7 @@ import (
 type Statement struct {
 	Type        string      `json:"type"`
 	Value       uint32      `json:"value"`
-	IoTarget    string      `json:"io_target"`
+	IOTarget    string      `json:"io_target"`
 	Body        []Statement `json:"body"`
 	DebugTarget bool
 	lexer.Position
@@ -71,7 +71,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 				return []Statement{}, 0, token.Position, fmt.Errorf("unexpected %s token, expected keyword", nextToken.Type)
 			}
 
-			statements = append(statements, Statement{Type: "Switch IO Statement", IoTarget: nextToken.Value, Position: token.Position})
+			statements = append(statements, Statement{Type: "Switch IO Statement", IOTarget: nextToken.Value, Position: token.Position})
 			isDebug = false
 		case "loop_open":
 			if index+2 > len(tokens) {

@@ -1,0 +1,15 @@
+>> leave two cells empty
+io file switch to file \io
+,[>,] read the whole file into the tape\.
+
+io http switch back to std\io
+
+<[<] go to the second cell (which is empty)
+
++> increment the cell for loop and move to the content
+
+[
+  .[>.] output all of the cell
+  <[<] go back to the first cell (second cell is not 0 anymore)
+  >> go to the second cell to continue the loop
+]

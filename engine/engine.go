@@ -21,11 +21,12 @@ type Engine struct {
 	Parser       parser.Parser
 	Tape         [30000]byte
 	Cursor       uint
-	Io           RuntimeIO
+	IOTargets    []RuntimeIO
 	IOSourceList IOSourceList
-	originalIo   RuntimeIO
+	ioTargetType string
+	originalIO   RuntimeIO
 	disposers    []func()
-	wg           *sync.WaitGroup
+	waiters      map[string]*sync.WaitGroup
 }
 
 func file_io(fileName string) (RuntimeIO, func() error, error) {
@@ -43,18 +44,24 @@ func file_io(fileName string) (RuntimeIO, func() error, error) {
 	return io, file.Close, nil
 }
 
-func http_io(port string, io *RuntimeIO, wg *sync.WaitGroup) {
-	wg.Add(1)
-
+func http_io(port string, e *Engine) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		io.Set(RuntimeIO{
+		w.Header().Set("content-type", "text/html")
+		e.waiters["write"].Add(1)
+		io := RuntimeIO{
 			Out: w,
 			Err: os.Stderr,
 			In:  os.Stdin,
-		})
-		wg.Done()
+		}
+
+		e.IOTargets = append(e.IOTargets, *io.Set(io))
+		e.waiters["http"].Done()
+
+		e.waiters["write"].Wait()
 	})
 
+	e.waiters["program"].Add(1)
+	e.waiters["http"].Add(1)
 	go http.ListenAndServe(port, nil)
 }
 
@@ -101,24 +108,40 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 				}
 			}
 		case "Stdout Statement":
-			// os.Stdout.Write([]byte{byte(e.Tape[e.Cursor])})
-			e.Io.Out.Write([]byte{byte(e.Tape[e.Cursor])})
+			if e.ioTargetType == "http" && len(e.IOTargets) == 0 {
+				e.waiters["http"].Wait()
+			}
+			for _, target := range e.IOTargets {
+				if e.ioTargetType == "http" {
+					if e.Tape[e.Cursor] != 0 {
+						target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
+					}
+				} else {
+					target.Out.Write([]byte{byte(e.Tape[e.Cursor])})
+				}
+			}
+			if e.ioTargetType == "http" && e.Tape[e.Cursor] == 0 {
+				e.IOTargets = []RuntimeIO{}
+				e.waiters["http"].Add(1)
+				e.waiters["write"].Done()
+			}
 		case "Stdin Statement":
-			byte, err := e.Io.reader.ReadByte()
+			target := e.IOTargets[0]
+			byte, err := target.reader.ReadByte()
 			if err != nil && err != io.EOF {
 				return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
 			}
 			e.Tape[e.Cursor] = byte
 		case "Switch IO Statement":
-			switch statement.IoTarget {
+			e.ioTargetType = statement.IOTarget
+			switch statement.IOTarget {
 			case "std":
-				e.Io.Set(e.originalIo)
+				e.IOTargets = []RuntimeIO{e.originalIO}
 			case "http":
-				http_io(e.IOSourceList.Http, &e.Io, e.wg)
-				e.wg.Wait()
-				e.Io.Out.Write([]byte("TEST"))
+				e.IOTargets = []RuntimeIO{}
+				http_io(e.IOSourceList.Http, e)
 			case "tcp":
-				e.Io.Out.Write([]byte("tcp"))
+				e.originalIO.Out.Write([]byte("tcp"))
 			case "file":
 				io, close, err := file_io(e.IOSourceList.File)
 
@@ -130,7 +153,8 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 					close()
 				})
 
-				e.Io.Set(io)
+				io.Set(io)
+				e.IOTargets = []RuntimeIO{io}
 			}
 		}
 	}
@@ -145,12 +169,13 @@ func (e *Engine) dispose(err bf_errors.FileError) {
 
 	if e.Debugger.Exists {
 		if err.Reason != nil {
+			err.Write(e.originalIO.Err)
 			e.Debugger.Error(err)
 		}
 		e.Debugger.Close()
 	} else {
 		if err.Reason != nil {
-			err.Write(e.originalIo.Err)
+			err.Write(e.originalIO.Err)
 		}
 	}
 }
@@ -176,6 +201,7 @@ func (e *Engine) Run() {
 		os.Exit(1)
 	}
 
+	e.waiters["program"].Wait()
 	e.dispose(bf_errors.EmptyError)
 }
 
@@ -192,9 +218,10 @@ type RuntimeIO struct {
 	Err    io.Writer
 	In     io.Reader
 	reader *bufio.Reader
+	writer *bufio.Writer
 }
 
-func (io *RuntimeIO) Set(value RuntimeIO) {
+func (io *RuntimeIO) Set(value RuntimeIO) *RuntimeIO {
 	if value.Out == nil {
 		io.Out = os.Stdout
 	} else {
@@ -211,6 +238,9 @@ func (io *RuntimeIO) Set(value RuntimeIO) {
 		io.In = value.In
 	}
 	io.reader = bufio.NewReader(io.In)
+	io.writer = bufio.NewWriter(io.Out)
+
+	return io
 }
 
 type IOSourceList struct {
@@ -238,12 +268,16 @@ func NewEngine(options EngineOptions) *Engine {
 	}
 
 	e := &Engine{
-		Name:         name,
-		Path:         options.FilePath,
-		Content:      string(content),
-		Parser:       parser.NewParser(options.FilePath),
-		Io:           std,
-		wg:           &sync.WaitGroup{},
+		Name:      name,
+		Path:      options.FilePath,
+		Content:   string(content),
+		Parser:    parser.NewParser(options.FilePath),
+		IOTargets: []RuntimeIO{std},
+		waiters: map[string]*sync.WaitGroup{
+			"program": {},
+			"http":    {},
+			"write":   {},
+		},
 		IOSourceList: options.IOSourceList,
 	}
 
@@ -255,15 +289,17 @@ func NewEngine(options EngineOptions) *Engine {
 		e.IOSourceList.Http = ":8080"
 	}
 
-	e.Io.Set(e.Io)
-	e.originalIo.Set(e.Io)
+	e.IOTargets[0].Set(e.IOTargets[0])
+	e.originalIO.Set(e.IOTargets[0])
+	e.ioTargetType = "std"
 
 	if options.AttachDebugger {
-		e.Debugger = debugger.NewDebugger(e.Io.Out)
+		e.Debugger = debugger.NewDebugger(e.originalIO.Out)
 	}
 
 	if err != nil {
-		e.originalIo.Err.Write([]byte(err.Error()))
+		e.originalIO.Err.Write([]byte(err.Error()))
+		e.originalIO.Err.Write([]byte{10})
 		os.Exit(1)
 	}
 
