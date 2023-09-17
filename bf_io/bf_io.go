@@ -60,7 +60,7 @@ func FileIO(fileName string) (RuntimeIO, func() error, error) {
 	return io, file.Close, nil
 }
 
-func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters waiter.EngineWaiter) {
+func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters waiter.EngineWaiter) *http.Server {
 	var contentType string
 
 	if path.Ext(file_resource) == ".json" {
@@ -72,6 +72,8 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 			contentType = http.DetectContentType(file)
 		}
 	}
+
+	srv := &http.Server{Addr: port}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if len(contentType) != 0 {
@@ -92,7 +94,9 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 
 	waiters.Add("program", 1)
 	waiters.Add("http", 1)
-	go http.ListenAndServe(port, nil)
+	go srv.ListenAndServe()
+
+	return srv
 }
 
 type IOTargetType = string

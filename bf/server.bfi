@@ -8,20 +8,9 @@ io http switch back to http \io
 
 > move to the content
 
-.[>.] output all of the cell
-
->
-++++++++++
-++++++++++
-++++++++++
-++++++++++
-++++++++++
-++++++++++
-+++++
-
-.
->.
-
-io std
-
-+[]
+loop indefinitely for connect\ions
+[
+  .[>.] output all of the cell
+  <[<] go back to the first cell
+  > go to the second cell to continue the loop
+]

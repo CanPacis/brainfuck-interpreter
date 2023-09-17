@@ -2,9 +2,11 @@ package engine
 
 import (
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
@@ -27,6 +29,7 @@ type Engine struct {
 	originalIO   bf_io.RuntimeIO
 	disposers    []func()
 	waiters      waiter.EngineWaiter
+	httpServer   *http.Server
 }
 
 func run(e *Engine, program []parser.Statement) bf_errors.FileError {
@@ -90,20 +93,34 @@ func run(e *Engine, program []parser.Statement) bf_errors.FileError {
 				e.waiters.Done("write")
 			}
 		case "Stdin Statement":
-			target := e.IOTargets[0]
+			var target bf_io.RuntimeIO
+
+			if len(e.IOTargets) == 0 {
+				target = e.originalIO
+			} else {
+				target = e.IOTargets[0]
+			}
 			byte, err := target.Reader.ReadByte()
 			if err != nil && err != io.EOF {
 				return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
 			}
 			e.Tape[e.Cursor] = byte
 		case "Switch IO Statement":
+			time.Sleep(time.Millisecond)
+			if e.ioTargetType == bf_io.Http {
+				e.waiters.Done("program")
+				if e.httpServer != nil {
+					e.httpServer.Close()
+				}
+			}
+
 			e.ioTargetType = statement.IOTarget
 			switch statement.IOTarget {
 			case "std":
 				e.IOTargets = []bf_io.RuntimeIO{e.originalIO}
 			case "http":
 				e.IOTargets = []bf_io.RuntimeIO{}
-				bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, &e.IOTargets, e.waiters)
+				e.httpServer = bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, &e.IOTargets, e.waiters)
 			case "tcp":
 				e.originalIO.Out.Write([]byte("tcp"))
 			case "file":
@@ -141,6 +158,10 @@ func (e *Engine) dispose(err bf_errors.FileError) {
 		if err.Reason != nil {
 			err.Write(e.originalIO.Err)
 		}
+	}
+
+	if e.httpServer != nil {
+		e.httpServer.Close()
 	}
 }
 
