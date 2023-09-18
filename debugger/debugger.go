@@ -7,103 +7,115 @@ import (
 )
 
 type Debugger struct {
-	Exists bool
-	Client Client
+	Exists      bool
+	Client      Client
+	ErrorClient ErrorClient
 }
 
-type ServerOperationType string
+type ServerAction string
 
 var (
-	DiscloseMetaData   ServerOperationType = "disclose-meta-data"
-	DiscloseDebugState ServerOperationType = "disclose-debug-state"
-	ExitOperation      ServerOperationType = "exit"
-	StdOutOperation    ServerOperationType = "std-out"
+	DiscloseMetaData   ServerAction = "disclose-meta-data"
+	DiscloseDebugState ServerAction = "disclose-debug-state"
+	ExitAction         ServerAction = "exit"
+	StdOutAction       ServerAction = "std-out"
+	StdErrAction       ServerAction = "std-err"
 )
 
 type MetaData struct {
-	Operation ServerOperationType `json:"operation"`
-	FileName  string              `json:"file_name"`
-	FilePath  string              `json:"file_path"`
-	Content   string              `json:"content"`
+	Operation ServerAction `json:"operation"`
+	FileName  string       `json:"file_name"`
+	FilePath  string       `json:"file_path"`
+	Content   string       `json:"content"`
 }
 
 type State struct {
-	Operation ServerOperationType `json:"operation"`
-	Statement parser.Statement    `json:"statement"`
-	Tape      []byte              `json:"tape"`
-	Cursor    uint                `json:"cursor"`
+	Operation ServerAction     `json:"operation"`
+	Statement parser.Statement `json:"statement"`
+	Tape      []byte           `json:"tape"`
+	Cursor    uint             `json:"cursor"`
 }
 
 type Exit struct {
-	Operation ServerOperationType `json:"operation"`
+	Operation ServerAction `json:"operation"`
 }
 
 type StdOut struct {
-	Operation ServerOperationType `json:"operation"`
-	Value     string              `json:"value"`
+	Operation ServerAction `json:"operation"`
+	Value     string       `json:"value"`
 }
 
-type ClientOperationType string
+type ClientAction string
 
 var (
-	Resume   ClientOperationType = "resume"
-	Step     ClientOperationType = "step"
-	StepOut  ClientOperationType = "step-out"
-	StepOver ClientOperationType = "step-over"
-	Assign   ClientOperationType = "assign"
-	Move     ClientOperationType = "move"
+	Resume   ClientAction = "resume"
+	Step     ClientAction = "step"
+	StepOut  ClientAction = "step-out"
+	StepOver ClientAction = "step-over"
+	Assign   ClientAction = "assign"
+	Move     ClientAction = "move"
 )
 
 type ClientOperation struct {
-	Operation ClientOperationType `json:"operation"`
+	Operation ClientAction `json:"operation"`
 }
 
 type PlayerOperation struct {
-	Operation ClientOperationType `json:"operation"`
+	Operation ClientAction `json:"operation"`
 }
 
 type AssignOperation struct {
-	Operation ClientOperationType `json:"operation"`
-	Cell      uint                `json:"cell"`
-	Value     byte                `json:"value"`
+	Operation ClientAction `json:"operation"`
+	Cell      uint         `json:"cell"`
+	Value     byte         `json:"value"`
 }
 
-type MoveAction struct {
-	Operation ClientOperationType `json:"operation"`
-	Cell      uint                `json:"cell"`
+type MoveOperation struct {
+	Operation ClientAction `json:"operation"`
+	Cell      uint         `json:"cell"`
 }
 
 func (d Debugger) Close() error {
-	d.Client.WriteOperation(Exit{ExitOperation})
+	d.Client.WriteOperation(Exit{ExitAction})
 	return nil
 }
 
-func (d Debugger) ShareState(state State) (ClientOperation, error) {
+func (d Debugger) ShareState(state State) (string, interface{}, error) {
 	d.Client.WriteOperation(state)
-	operation := ClientOperation{}
 
 	response := make([]byte, 1024)
 	n, err := d.Client.Read(response)
 	response = response[:n]
 
 	if err != nil {
-		return operation, err
+		return "", nil, err
 	}
 
-	err = json.Unmarshal(response, &operation)
+	var action map[string]interface{}
+	err = json.Unmarshal(response, &action)
 
 	if err != nil {
-		return operation, err
+		return "", action, err
 	}
 
-	return operation, nil
+	switch action["operation"] {
+	case "resume", "step", "step-out", "step-over":
+		return action["operation"].(string), PlayerOperation{Operation: ClientAction(action["operation"].(string))}, nil
+	case "move":
+		return "move", MoveOperation{Operation: "move", Cell: uint(action["cell"].(float64))}, nil
+	case "assign":
+		return "assign", AssignOperation{Operation: "assign", Cell: uint(action["cell"].(float64)), Value: byte(action["value"].(float64))}, nil
+	}
+
+	return "", action, nil
 }
 
 func NewDebugger() (Debugger, error) {
-	client := &Client{"out"}
+	client := &Client{}
 
 	return Debugger{
-		Exists: true,
-		Client: *client,
+		Exists:      true,
+		Client:      *client,
+		ErrorClient: ErrorClient{client},
 	}, nil
 }

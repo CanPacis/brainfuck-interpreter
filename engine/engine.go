@@ -38,21 +38,28 @@ func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
 		statement := program[index]
 
 		if e.Debugger.Exists && statement.DebugTarget {
-			action, err := e.Debugger.ShareState(e.CreateDebugState(statement))
+			operation, action, err := e.Debugger.ShareState(e.CreateDebugState(statement))
 
 			if err != nil {
 				return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
 			}
 
-			switch action.Operation {
+			switch operation {
 			case "step":
 				if len(program) > index+1 {
 					program[index+1].DebugTarget = true
 				}
 			case "step-over":
-				index++
+				if len(program) > index+2 {
+					program[index+2].DebugTarget = true
+				}
+			case "move":
+				e.Cursor = action.(debugger.MoveOperation).Cell
+			case "assign":
+				o := action.(debugger.AssignOperation)
+				e.Tape[o.Cell] = o.Value
 			case "step-out":
-				return bf_errors.EmptyError
+				e.Debugger.Client.WriteOperation(map[string]interface{}{"operation": "not-implemented"})
 			}
 		}
 
@@ -209,7 +216,7 @@ func NewEngine(options EngineOptions) *Engine {
 		e.Debugger = debugger_instance
 		io := bf_io.RuntimeIO{
 			Out: &debugger_instance.Client,
-			Err: &debugger_instance.Client,
+			Err: &debugger_instance.ErrorClient,
 			In:  &debugger_instance.Client,
 		}
 		e.IOTargets = []bf_io.RuntimeIO{*io.Init(io)}

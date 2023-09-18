@@ -7,12 +7,22 @@ import (
 )
 
 type Client struct {
-	target string
+}
+
+type ErrorClient struct {
+	parent *Client
+}
+
+func (c *ErrorClient) Write(p []byte) (int, error) {
+	return c.parent.WriteOperation(StdOut{
+		Operation: StdErrAction,
+		Value:     string(p),
+	})
 }
 
 func (c *Client) Write(p []byte) (int, error) {
 	return c.WriteOperation(StdOut{
-		Operation: StdOutOperation,
+		Operation: StdOutAction,
 		Value:     string(p),
 	})
 }
