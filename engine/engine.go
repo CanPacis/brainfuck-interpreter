@@ -37,22 +37,24 @@ func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
 	for ; index < len(program); index++ {
 		statement := program[index]
 
-		if e.Debugger.Exists {
-			e.Debugger.Share(e.CreateDebugState(statement))
+		if e.Debugger.Exists && statement.DebugTarget {
+			action, err := e.Debugger.ShareState(e.CreateDebugState(statement))
+
+			if err != nil {
+				return bf_errors.CreateUncaughtError(err, statement.Position, e.Path)
+			}
+
+			switch action.Operation {
+			case "step":
+				if len(program) > index+1 {
+					program[index+1].DebugTarget = true
+				}
+			case "step-over":
+				index++
+			case "step-out":
+				return bf_errors.EmptyError
+			}
 		}
-		// if e.Debugger.Exists && statement.DebugTarget {
-		// 	action := e.Debugger.Wait(e.CreateDebugState(statement))
-		// 	switch action.Operation {
-		// 	case "step":
-		// 		if len(program) > index+1 {
-		// 			program[index+1].DebugTarget = true
-		// 		}
-		// 	case "step-over":
-		// 		index++
-		// 	case "step-out":
-		// 		return bf_errors.EmptyError
-		// 	}
-		// }
 
 		switch statement.Type {
 		case "Increment Statement":
@@ -96,16 +98,12 @@ func (e *Engine) dispose(err bf_errors.RuntimeError) {
 		disposer()
 	}
 
+	if err.Reason != nil {
+		err.Write(e.originalIO.Err)
+	}
+
 	if e.Debugger.Exists {
-		if err.Reason != nil {
-			err.Write(e.originalIO.Err)
-			e.Debugger.Error(err)
-		}
 		e.Debugger.Close()
-	} else {
-		if err.Reason != nil {
-			err.Write(e.originalIO.Err)
-		}
 	}
 
 	if e.httpServer != nil {
@@ -114,13 +112,19 @@ func (e *Engine) dispose(err bf_errors.RuntimeError) {
 }
 
 func (e *Engine) Run() {
-	// if e.Debugger.Exists {
-	// 	e.Debugger.Open(debugger.MetaData{
-	// 		FileName: e.Name,
-	// 		FilePath: e.Path,
-	// 		Content:  e.Content,
-	// 	})
-	// }
+	if e.Debugger.Exists {
+		data := debugger.MetaData{
+			Operation: debugger.DiscloseMetaData,
+			FileName:  e.Name,
+			FilePath:  e.Path,
+			Content:   e.Content,
+		}
+		_, err := e.Debugger.Client.WriteOperation(data)
+
+		if err != nil {
+			os.Exit(1)
+		}
+	}
 
 	err := e.Parser.Parse(e.Content)
 	if err.Reason != nil {
@@ -140,6 +144,7 @@ func (e *Engine) Run() {
 
 func (e *Engine) CreateDebugState(statement parser.Statement) debugger.State {
 	return debugger.State{
+		Operation: debugger.DiscloseDebugState,
 		Statement: statement,
 		Cursor:    e.Cursor,
 		Tape:      e.Tape[:100],
@@ -187,13 +192,29 @@ func NewEngine(options EngineOptions) *Engine {
 		e.IOSourceList.Http = ":8080"
 	}
 
-	e.IOTargets[0].Set(e.IOTargets[0])
-	e.originalIO.Set(e.IOTargets[0])
+	e.IOTargets[0].Init(e.IOTargets[0])
+	e.originalIO.Init(e.IOTargets[0])
 	e.ioTargetType = bf_io.Std
 
-	// if options.AttachDebugger {
-	// 	e.Debugger = debugger.NewDebugger(e.originalIO.Out)
-	// }
+	if options.AttachDebugger {
+		debugger_instance, err := debugger.NewDebugger()
+
+		if err != nil {
+			e.originalIO.Err.Write([]byte("Failed to create a debugger"))
+			e.originalIO.Err.Write([]byte{10})
+			e.originalIO.Err.Write([]byte(err.Error()))
+			e.originalIO.Err.Write([]byte{10})
+		}
+
+		e.Debugger = debugger_instance
+		io := bf_io.RuntimeIO{
+			Out: &debugger_instance.Client,
+			Err: &debugger_instance.Client,
+			In:  &debugger_instance.Client,
+		}
+		e.IOTargets = []bf_io.RuntimeIO{*io.Init(io)}
+		e.originalIO = e.IOTargets[0]
+	}
 
 	if err != nil {
 		e.originalIO.Err.Write([]byte(err.Error()))

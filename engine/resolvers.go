@@ -126,7 +126,7 @@ func (e *Engine) r_switch_io_s(statement parser.Statement) bf_errors.RuntimeErro
 			close()
 		})
 
-		e.IOTargets = []bf_io.RuntimeIO{*io.Set(io)}
+		e.IOTargets = []bf_io.RuntimeIO{*io.Init(io)}
 	}
 
 	return bf_errors.EmptyError

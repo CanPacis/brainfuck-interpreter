@@ -12,7 +12,7 @@ type Statement struct {
 	Value       uint32      `json:"value"`
 	IOTarget    string      `json:"io_target"`
 	Body        []Statement `json:"body"`
-	DebugTarget bool
+	DebugTarget bool        `json:"debug_target"`
 	lexer.Position
 }
 

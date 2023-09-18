@@ -18,7 +18,7 @@ type RuntimeIO struct {
 	Writer *bufio.Writer
 }
 
-func (io *RuntimeIO) Set(value RuntimeIO) *RuntimeIO {
+func (io *RuntimeIO) Init(value RuntimeIO) *RuntimeIO {
 	if value.Out == nil {
 		io.Out = os.Stdout
 	} else {
@@ -80,6 +80,13 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 			w.Header().Set("content-type", contentType)
 		}
 
+		// on the off chance that the client gives up, this somehow
+		// prevents the negative counter in waiters
+		select {
+		case <-r.Context().Done():
+		default:
+		}
+
 		waiters.Add(waiter.Write, 1)
 		io := RuntimeIO{
 			Out: w,
@@ -87,7 +94,8 @@ func HttpIO(port string, file_resource string, io_targets *[]RuntimeIO, waiters 
 			In:  os.Stdin,
 		}
 
-		*io_targets = append(*io_targets, *io.Set(io))
+		*io_targets = append(*io_targets, *io.Init(io))
+
 		waiters.Done(waiter.HttpConnection)
 		waiters.Wait(waiter.Write)
 	})

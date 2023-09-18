@@ -1,147 +1,109 @@
 package debugger
 
 import (
-	"net"
+	"encoding/json"
 
-	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
-	"github.com/CanPacis/brainfuck-interpreter/bf_io"
 	"github.com/CanPacis/brainfuck-interpreter/parser"
 )
 
 type Debugger struct {
-	Exists   bool
-	listener net.Listener
-	// clients  DebugClient
+	Exists bool
+	Client Client
 }
 
+type ServerOperationType string
+
+var (
+	DiscloseMetaData   ServerOperationType = "disclose-meta-data"
+	DiscloseDebugState ServerOperationType = "disclose-debug-state"
+	ExitOperation      ServerOperationType = "exit"
+	StdOutOperation    ServerOperationType = "std-out"
+)
+
 type MetaData struct {
-	Type     string `json:"type"`
-	FileName string `json:"file_name"`
-	FilePath string `json:"file_path"`
-	Content  string `json:"content"`
+	Operation ServerOperationType `json:"operation"`
+	FileName  string              `json:"file_name"`
+	FilePath  string              `json:"file_path"`
+	Content   string              `json:"content"`
 }
 
 type State struct {
-	Type      string           `json:"type"`
-	Statement parser.Statement `json:"statement"`
-	Tape      []byte           `json:"tape"`
-	Cursor    uint             `json:"cursor"`
+	Operation ServerOperationType `json:"operation"`
+	Statement parser.Statement    `json:"statement"`
+	Tape      []byte              `json:"tape"`
+	Cursor    uint                `json:"cursor"`
 }
 
-type IOData struct {
-	Type    string             `json:"type"`
-	Content []byte             `json:"content"`
-	Target  bf_io.IOTargetType `json:"target"`
-	Channel string             `json:"channel"`
+type Exit struct {
+	Operation ServerOperationType `json:"operation"`
 }
 
-// type DebugClient struct {
-// 	connection net.Conn
-// }
-
-type Action struct {
-	Operation string `json:"operation"`
+type StdOut struct {
+	Operation ServerOperationType `json:"operation"`
+	Value     string              `json:"value"`
 }
 
-// func (c DebugClient) Send(data interface{}) error {
-// 	encoded, err := json.Marshal(data)
+type ClientOperationType string
 
-// 	if err != nil {
-// 		return err
-// 	}
+var (
+	Resume   ClientOperationType = "resume"
+	Step     ClientOperationType = "step"
+	StepOut  ClientOperationType = "step-out"
+	StepOver ClientOperationType = "step-over"
+	Assign   ClientOperationType = "assign"
+	Move     ClientOperationType = "move"
+)
 
-// 	size := strconv.Itoa(len(encoded))
-// 	sizeBuffer := bytes.Buffer{}
-// 	sizeBytes := []byte(size)
-
-// 	for i := 0; i < 10-len(sizeBytes); i++ {
-// 		binary.Write(&sizeBuffer, binary.LittleEndian, []byte{0})
-// 	}
-// 	binary.Write(&sizeBuffer, binary.LittleEndian, sizeBytes)
-// 	c.connection.Write(sizeBuffer.Bytes())
-// 	c.connection.Write(encoded)
-
-// 	return nil
-// }
-
-// func (c DebugClient) Receive() (Action, error) {
-// 	buffer := make([]byte, 1024)
-// 	n, err := c.connection.Read(buffer)
-// 	action := Action{}
-
-// 	if err != nil {
-// 		return action, err
-// 	}
-
-// 	buffer = buffer[:n]
-
-// 	err = json.Unmarshal(buffer, &action)
-
-// 	return action, err
-// }
-
-func (d Debugger) Error(err bf_errors.RuntimeError) {
-	// d.client.Send(err)
+type ClientOperation struct {
+	Operation ClientOperationType `json:"operation"`
 }
 
-func (d Debugger) Share(data interface{}) {
+type PlayerOperation struct {
+	Operation ClientOperationType `json:"operation"`
 }
 
-// func (d Debugger) Wait(state State) DebugAction {
-// 	err := d.client.Send(state)
-
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	action, err := d.client.Receive()
-
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	return action
-// }
-
-// func (d Debugger) Open(data MetaData) {
-// d.client.Send(data)
-// }
-
-func (d Debugger) Close() {
-	// d.client.Send(map[string]bool{"exit": true})
-	// d.client.connection.Close()
-	// d.listener.Close()
+type AssignOperation struct {
+	Operation ClientOperationType `json:"operation"`
+	Cell      uint                `json:"cell"`
+	Value     byte                `json:"value"`
 }
 
-type Server struct {
-	Host string
-	Port string
-	Type string
+type MoveAction struct {
+	Operation ClientOperationType `json:"operation"`
+	Cell      uint                `json:"cell"`
 }
 
-func NewDebugger() Debugger {
-	// server := Server{
-	// 	Host: "127.0.0.1",
-	// 	Port: "0",
-	// 	Type: "tcp",
-	// }
-	// listener, err := net.Listen(server.Type, server.Host+":"+server.Port)
+func (d Debugger) Close() error {
+	d.Client.WriteOperation(Exit{ExitOperation})
+	return nil
+}
 
-	// if err != nil {
-	// 	panic(err)
-	// }
+func (d Debugger) ShareState(state State) (ClientOperation, error) {
+	d.Client.WriteOperation(state)
+	operation := ClientOperation{}
 
-	// port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
-	// w.Write([]byte(port))
-	// connection, err := listener.Accept()
+	response := make([]byte, 1024)
+	n, err := d.Client.Read(response)
+	response = response[:n]
 
-	// if err != nil {
-	// 	panic(err)
-	// }
+	if err != nil {
+		return operation, err
+	}
+
+	err = json.Unmarshal(response, &operation)
+
+	if err != nil {
+		return operation, err
+	}
+
+	return operation, nil
+}
+
+func NewDebugger() (Debugger, error) {
+	client := &Client{"out"}
 
 	return Debugger{
 		Exists: true,
-		// listener: listener,
-		// client:   DebugClient{connection},
-	}
+		Client: *client,
+	}, nil
 }
