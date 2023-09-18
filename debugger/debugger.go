@@ -38,6 +38,7 @@ type State struct {
 
 type Exit struct {
 	Operation ServerAction `json:"operation"`
+	Code      int          `json:"code"`
 }
 
 type StdOut struct {
@@ -75,8 +76,8 @@ type MoveOperation struct {
 	Cell      uint         `json:"cell"`
 }
 
-func (d Debugger) Close() error {
-	d.Client.WriteOperation(Exit{ExitAction})
+func (d Debugger) Close(code int) error {
+	d.Client.WriteOperation(Exit{Operation: ExitAction, Code: code})
 	return nil
 }
 

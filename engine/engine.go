@@ -10,6 +10,7 @@ import (
 	"github.com/CanPacis/brainfuck-interpreter/bf_errors"
 	"github.com/CanPacis/brainfuck-interpreter/bf_io"
 	"github.com/CanPacis/brainfuck-interpreter/debugger"
+	"github.com/CanPacis/brainfuck-interpreter/lexer"
 	"github.com/CanPacis/brainfuck-interpreter/parser"
 	"github.com/CanPacis/brainfuck-interpreter/waiter"
 )
@@ -107,10 +108,9 @@ func (e *Engine) dispose(err bf_errors.RuntimeError) {
 
 	if err.Reason != nil {
 		err.Write(e.originalIO.Err)
-	}
-
-	if e.Debugger.Exists {
-		e.Debugger.Close()
+		e.Debugger.Close(1)
+	} else {
+		e.Debugger.Close(0)
 	}
 
 	if e.httpServer != nil {
@@ -129,6 +129,7 @@ func (e *Engine) Run() {
 		_, err := e.Debugger.Client.WriteOperation(data)
 
 		if err != nil {
+			e.dispose(bf_errors.CreateUncaughtError(err, lexer.Position{}, e.Path))
 			os.Exit(1)
 		}
 	}

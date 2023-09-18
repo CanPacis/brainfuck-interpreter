@@ -114,7 +114,7 @@ func (e *Engine) r_switch_io_s(statement parser.Statement) bf_errors.RuntimeErro
 		e.IOTargets = []bf_io.RuntimeIO{}
 		e.httpServer = bf_io.HttpIO(e.IOSourceList.Http, e.IOSourceList.File, &e.IOTargets, e.waiters)
 	case "tcp":
-		e.originalIO.Out.Write([]byte("tcp"))
+		e.originalIO.Out.Write([]byte("tcp not implemented yet"))
 	case "file":
 		io, close, err := bf_io.FileIO(e.IOSourceList.File)
 
