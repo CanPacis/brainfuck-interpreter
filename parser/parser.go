@@ -85,6 +85,7 @@ func parse(tokens []lexer.Token) ([]Statement, int, lexer.Position, error) {
 				return []Statement{}, 0, token.Position, err
 			}
 			statements = append(statements, Statement{Type: "Loop Statement", Body: loopStatements, Position: token.Position, DebugTarget: isDebug})
+			statements = append(statements, Statement{Type: "Loop Done", Position: token.Position, DebugTarget: isDebug})
 			isDebug = false
 		case "loop_close":
 			isDebug = false

@@ -45,7 +45,7 @@ func (e *Engine) r_move_left_s(statement parser.Statement) bf_errors.RuntimeErro
 
 func (e *Engine) r_loop_s(statement parser.Statement) bf_errors.RuntimeError {
 	for e.Tape[e.Cursor] != 0 {
-		err := run(e, statement.Body)
+		err := run(e, &statement.Body)
 		if err.Reason != nil {
 			return err
 		}

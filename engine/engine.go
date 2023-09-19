@@ -16,29 +16,32 @@ import (
 )
 
 type Engine struct {
-	Path         string
-	Name         string
-	Content      string
-	Debugger     debugger.Debugger
-	Parser       parser.Parser
-	Tape         [30000]byte
-	Cursor       uint
-	IOTargets    []bf_io.RuntimeIO
-	IOSourceList bf_io.IOSourceList
-	ioTargetType bf_io.IOTargetType
-	originalIO   bf_io.RuntimeIO
-	disposers    []func()
-	waiters      waiter.EngineWaiter
-	httpServer   *http.Server
+	Path               string
+	Name               string
+	Content            string
+	Debugger           debugger.Debugger
+	Parser             parser.Parser
+	Tape               [30000]byte
+	Cursor             uint
+	IOTargets          []bf_io.RuntimeIO
+	IOSourceList       bf_io.IOSourceList
+	ioTargetType       bf_io.IOTargetType
+	originalIO         bf_io.RuntimeIO
+	disposers          []func()
+	waiters            waiter.EngineWaiter
+	httpServer         *http.Server
+	debuggerSteppedOut bool
 }
 
-func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
+func run(e *Engine, p *[]parser.Statement) bf_errors.RuntimeError {
 	index := 0
+	shouldResume := false
+	program := *p
 
 	for ; index < len(program); index++ {
 		statement := program[index]
 
-		if e.Debugger.Exists && statement.DebugTarget {
+		if e.Debugger.Exists && statement.DebugTarget && !shouldResume && !e.debuggerSteppedOut {
 			operation, action, err := e.Debugger.ShareState(e.CreateDebugState(statement))
 
 			if err != nil {
@@ -56,11 +59,22 @@ func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
 				}
 			case "move":
 				e.Cursor = action.(debugger.MoveOperation).Cell
+				if len(program) > index+1 {
+					program[index+1].DebugTarget = true
+				}
+			case "resume":
+				shouldResume = true
+				if len(program) > index+1 {
+					program[index+1].DebugTarget = false
+				}
 			case "assign":
 				o := action.(debugger.AssignOperation)
 				e.Tape[o.Cell] = o.Value
 			case "step-out":
-				e.Debugger.Client.WriteOperation(map[string]interface{}{"operation": "not-implemented"})
+				for _, statment := range *p {
+					statment.DebugTarget = false
+				}
+				e.debuggerSteppedOut = true
 			}
 		}
 
@@ -80,8 +94,22 @@ func run(e *Engine, program []parser.Statement) bf_errors.RuntimeError {
 				return err
 			}
 		case "Loop Statement":
+			if statement.DebugTarget && len(statement.Body) > 0 && !shouldResume {
+				if e.debuggerSteppedOut {
+					e.debuggerSteppedOut = false
+				} else {
+					statement.Body[0].DebugTarget = true
+				}
+			}
 			if err := e.r_loop_s(statement); err.Reason != nil {
 				return err
+			}
+		case "Loop Done":
+			if e.debuggerSteppedOut {
+				if len(program) > index+1 {
+					program[index+1].DebugTarget = true
+					e.debuggerSteppedOut = false
+				}
 			}
 		case "Stdout Statement":
 			if err := e.r_stdout_s(statement); err.Reason != nil {
@@ -108,9 +136,13 @@ func (e *Engine) dispose(err bf_errors.RuntimeError) {
 
 	if err.Reason != nil {
 		err.Write(e.originalIO.Err)
-		e.Debugger.Close(1)
+		if e.Debugger.Exists {
+			e.Debugger.Close(1)
+		}
 	} else {
-		e.Debugger.Close(0)
+		if e.Debugger.Exists {
+			e.Debugger.Close(0)
+		}
 	}
 
 	if e.httpServer != nil {
@@ -140,7 +172,7 @@ func (e *Engine) Run() {
 		os.Exit(1)
 	}
 
-	err = run(e, e.Parser.Program)
+	err = run(e, &e.Parser.Program)
 	if err.Reason != nil {
 		e.dispose(err)
 		os.Exit(1)
@@ -151,11 +183,24 @@ func (e *Engine) Run() {
 }
 
 func (e *Engine) CreateDebugState(statement parser.Statement) debugger.State {
+	var tape []byte
+
+	for i, value := range e.Tape {
+		if value == 0 && len(e.Tape) > i+1 && e.Tape[i+1] == 0 {
+			if i < 50 {
+				tape = e.Tape[:50]
+			} else {
+				tape = e.Tape[:i]
+			}
+			break
+		}
+	}
+
 	return debugger.State{
 		Operation: debugger.DiscloseDebugState,
 		Statement: statement,
 		Cursor:    e.Cursor,
-		Tape:      e.Tape[:100],
+		Tape:      tape,
 	}
 }
 
@@ -227,6 +272,7 @@ func NewEngine(options EngineOptions) *Engine {
 	if err != nil {
 		e.originalIO.Err.Write([]byte(err.Error()))
 		e.originalIO.Err.Write([]byte{10})
+		e.dispose(bf_errors.CreateUncaughtError(err, lexer.Position{}, e.Path))
 		os.Exit(1)
 	}
 

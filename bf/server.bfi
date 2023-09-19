@@ -1,3 +1,4 @@
+debug
 > leave one cell empty
 io file switch to file \io
 ,[>,] read the whole file into the tape\.
